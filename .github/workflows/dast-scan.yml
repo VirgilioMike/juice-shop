@@ -1,4 +1,4 @@
-name: DAST Scan with OWASP ZAP
+name: DAST Scan with OWASP ZAP (Simplified)
 
 on:
   push:
@@ -15,9 +15,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Start Juice Shop in a Docker Container
         run: |
