@@ -21,10 +21,12 @@ jobs:
       - name: Run Semgrep SAST scan
         uses: returntocorp/semgrep-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Configurações de regras
           config: |
             p/javascript
             p/nodejs-express
+          # Token para publicar resultados/comments no PR
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
 
   dast_scan:
     name: DAST Scan (OWASP ZAP)
@@ -39,10 +41,15 @@ jobs:
           docker run -d --name juiceshop --network host bkimminich/juice-shop
 
       - name: Wait for Juice Shop to be ready
-        uses: jakejarvis/wait-action@v0.1.18
-        with:
-          address: http://localhost:3000
-          timeout: '60s'
+        run: |
+          echo "⌛ Waiting for Juice Shop to start on http://localhost:3000"
+          retries=12
+          until curl --silent --head --fail http://localhost:3000; do
+            ((retries--)) || { echo "❌ Juice Shop failed to start"; exit 1; }
+            echo "⏳ retrying… (${retries} left)"
+            sleep 5
+          done
+          echo "✅ Juice Shop is up!"
 
       - name: Run OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.7.0
@@ -53,5 +60,4 @@ jobs:
           fail_action: false
 
       - name: Report ZAP Findings
-        run: |
-          echo "✅ ZAP scan completed. Veja os logs para detalhes."
+        run: echo "✅ ZAP scan completed. Confira os logs para detalhes."
