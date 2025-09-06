@@ -177,7 +177,7 @@ jobs:
       - name: "Install nyc"
         run: npm install --no-save nyc
       - name: "Execute server tests for each custom configuration"
-        uses: nick-invision/retry@7152eba30c6575329ac0576536151aca5a72780e #v3.0.0
+        uses: nick-invision/retry@v3.0.0
         with:
           timeout_minutes: 30
           max_attempts: 3
