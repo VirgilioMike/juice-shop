@@ -24,14 +24,7 @@ jobs:
             p/javascript
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
-          output-format: sarif
-          sarif_file: semgrep.sarif
-      
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: semgrep.sarif
-
+  
   # 2) Software Composition Analysis (SCA) com OWASP Dependency-Check
   sca_scan:
     name: SCA Scan (Dependency-Check)
@@ -50,7 +43,6 @@ jobs:
         run: npm ci
 
       - name: Run OWASP Dependency-Check
-        id: dependency-check
         uses: dependency-check/action@v3
         with:
           project: 'Juice Shop'
@@ -84,7 +76,7 @@ jobs:
           target: 'http://localhost:3000'
           docker_name: 'owasp/zap2docker-stable'
           fail_action: false
-
+          
       - name: Upload ZAP report
         uses: actions/upload-artifact@v3
         with:
