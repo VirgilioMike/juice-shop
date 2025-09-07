@@ -7,12 +7,12 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # 1) Static Application Security Testing (SAST)
+  # 1) SAST com Semgrep
   sast_scan:
     name: SAST Scan (Semgrep)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout código
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Run Semgrep
@@ -23,45 +23,47 @@ jobs:
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
-  # 2) Dynamic Application Security Testing (DAST)
+  # 2) DAST com OWASP ZAP
   dast_scan:
     name: DAST Scan (OWASP ZAP)
     runs-on: ubuntu-latest
     needs: sast_scan
     steps:
-      - name: Checkout código
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Start Juice Shop em Docker
+      - name: Start Juice Shop
         run: |
           docker run -d --name juiceshop -p 3000:3000 \
             bkimminich/juice-shop
 
       - name: Wait for Juice Shop
         run: |
-          echo "⌛ Esperando http://localhost:3000…"
           for i in $(seq 1 12); do
-            curl --silent --fail http://localhost:3000 && { echo "✅ UP!"; break; }
-            echo "⏳ ainda não… ($i/12)"; sleep 5
+            if curl --silent --fail http://localhost:3000; then
+              echo "✅ Juice Shop UP!"; break
+            fi
+            echo "⏳ retry ($i/12)"; sleep 5
           done
 
-      - name: Login no GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # Se você começar a bater em rate-limit do Docker Hub,
+      # descomente as 3 linhas abaixo e defina DOCKERHUB_USER/DOCKERHUB_TOKEN
+      # - name: Login no Docker Hub
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: docker.io
+      #     username: ${{ secrets.DOCKERHUB_USER }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull imagem ZAP
+      - name: Pull ZAP Docker image
         run: |
-          IMG=ghcr.io/zaproxy/zap2docker-stable:latest
-          echo "🔄 puxando $IMG"
+          IMG=zaproxy/zap2docker-stable:latest
+          echo "🔄 Puxando $IMG"
           docker pull $IMG
 
       - name: Run ZAP Baseline Scan
         run: |
-          IMG=ghcr.io/zaproxy/zap2docker-stable:latest
-          echo "🚀 Scan DAST com ZAP em http://localhost:3000"
+          IMG=zaproxy/zap2docker-stable:latest
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}":/zap/wrk \
@@ -72,7 +74,7 @@ jobs:
               -I \
               -T 2
 
-      - name: Upload artefato ZAP
+      - name: Upload ZAP report
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
