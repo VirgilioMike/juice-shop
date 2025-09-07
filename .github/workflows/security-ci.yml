@@ -2,13 +2,9 @@ name: Security CI - Juice Shop
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -20,10 +16,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run OWASP Dependency-Check (Docker)
+      - name: Run OWASP Dependency-Check (via Docker)
         uses: docker://owasp/dependency-check:8.4.0
         with:
-          args: >
+          args: |
             --project juice-shop
             --scan /github/workspace
             --out /github/workspace/dep-check-report
@@ -47,18 +43,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run Semgrep
+      - name: Run Semgrep Action
         uses: returntocorp/semgrep-action@v1
         with:
+          # packs oficiais para JS/Node
           config: p/javascript,p/node-security
-          # GITHUB_TOKEN é suficiente para publicar o SARIF
+          # envia os resultados direto para o GitHub Code Scanning
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
   dast:
     name: DAST – OWASP ZAP Full Scan
     needs: [sca, sast]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -77,9 +73,9 @@ jobs:
           npx wait-on http://localhost:3000
 
       - name: Run ZAP full scan
-        uses: zaproxy/action-full-scan@v0.7.0
+        uses: zaproxy/action-full-scan@v0.7.1
         with:
-          target: http://localhost:3000
+          target: 'http://localhost:3000'
           format: HTML
           report_name: zap-report.html
 
