@@ -12,44 +12,42 @@ on:
       - master
 
 jobs:
-
   sca:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run OWASP Dependency-Check (via Docker)
+      - name: Run OWASP Dependency-Check (Docker)
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           mkdir -p dep-check-report
-          docker pull owasp/dependency-check:latest
+          docker pull owasp/dependency-check:12.1.0
           docker run --rm \
-            -e NVD_API_KEY="${NVD_API_KEY}" \
+            -e NVD_API_KEY \
             -v "${{ github.workspace }}":/src \
             -v "${{ github.workspace }}/dep-check-report":/report \
-            owasp/dependency-check:latest \
+            owasp/dependency-check:12.1.0 \
             --project "juice-shop" \
             --scan /src \
-            --format "HTML" \
-            --format "XML" \
             --out /report \
-            --apiKey "${NVD_API_KEY}"
+            --prettyPrint \
+            --nvdApiKey "${NVD_API_KEY}"
 
-      - name: Upload SCA report
+      - name: Upload SCA reports
         uses: actions/upload-artifact@v4
         with:
           name: sca-report
-          path: dep-check-report
+          path: dep-check-report/*
 
   sast:
     name: SAST – Semgrep
-    runs-on: ubuntu-latest
     needs: sca
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Run Semgrep
@@ -65,19 +63,19 @@ jobs:
 
   dast:
     name: DAST – OWASP ZAP Full Scan
-    runs-on: ubuntu-latest
     needs: [sca, sast]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
           cache: npm
 
-      - name: Install & Start Juice Shop
+      - name: Install & start Juice Shop
         run: |
           npm ci
           npm install -g wait-on
@@ -87,9 +85,9 @@ jobs:
       - name: Run ZAP full scan
         uses: zaproxy/action-full-scan@v0.7.1
         with:
-          target: 'http://localhost:3000'
-          format: 'HTML'
-          report_name: 'zap-report.html'
+          target: http://localhost:3000
+          format: HTML
+          report_name: zap-report.html
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
