@@ -12,48 +12,41 @@ jobs:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Cleanup test archives (evita erros de ZIP)
-        # remove os .zip que causavam falha no Archive Analyzer
-        run: rm -rf src/test/files
-
-      - name: Run OWASP Dependency-Check
-        run: |
-          mkdir -p dep-check-report
-          docker pull owasp/dependency-check:8.4.0
-          docker run --rm \
-            -v "${{ github.workspace }}":/src:ro \
-            -v "${{ github.workspace }}/dep-check-report":/report \
-            owasp/dependency-check:8.4.0 \
-            --project "juice-shop" \
-            --scan /src \
-            --out /report \
-            --prettyPrint \
-            --junitFailOnCVSS 7 \
-            --noupdate
+      - name: OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@v6
+        with:
+          scan: .
+          project: juice-shop
+          format: HTML,XML
+          output-directory: dep-check-report
+          failOnCVSS: 7
+          disableArchiveAnalyzer: true
+          cache: true
 
       - name: Upload SCA report
         uses: actions/upload-artifact@v4
         with:
           name: sca-report
-          path: dep-check-report/
+          path: dep-check-report
 
   sast:
     name: SAST – Semgrep
     needs: sca
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
-          config: "p/javascript, p/node-security"
-          args: "--sarif semgrep-report.sarif"
+          config: p/javascript, p/node-security
+          args: --sarif semgrep-report.sarif
 
-      - name: Upload Semgrep SARIF
+      - name: Upload SARIF to GitHub Code Scanning
         uses: github/code-scanning-upload-action@v2
         with:
           sarif_file: semgrep-report.sarif
@@ -63,12 +56,13 @@ jobs:
     needs: [sca, sast]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "16"
+          node-version: '16'
           cache: npm
 
       - name: Install & Start Juice Shop
@@ -81,7 +75,7 @@ jobs:
       - name: Run ZAP full scan
         uses: zaproxy/action-full-scan@v0.7.1
         with:
-          target: "http://localhost:3000"
+          target: 'http://localhost:3000'
           format: HTML
           report_name: zap-report.html
 
