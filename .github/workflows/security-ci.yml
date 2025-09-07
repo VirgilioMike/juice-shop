@@ -8,17 +8,54 @@ on:
   workflow_dispatch:
 
 jobs:
+
   sca:
-    # ... (seu bloco sca)
+    name: SCA – OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run OWASP Dependency-Check (via Docker)
+        uses: docker://owasp/dependency-check:8.4.0
+        with:
+          args: |
+            --project juice-shop
+            --scan /github/workspace
+            --out /github/workspace/dep-check-report
+            --format HTML
+            --format XML
+            --junitFailOnCVSS 7
+            --disableArchiveAnalyzer
+            --noupdate
+
+      - name: Upload SCA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-report
+          path: dep-check-report/**
+
   sast:
-    # ... (seu bloco sast)
+    name: SAST – Semgrep
+    needs: sca
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Semgrep Action
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/javascript,p/node-security
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
 
   dast:
     name: DAST – OWASP ZAP Full Scan
     needs: [sca, sast]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -34,7 +71,7 @@ jobs:
           npx wait-on http://localhost:3000
 
       - name: Run ZAP full scan
-        uses: zaproxy/action-full-scan@v0.12.0
+        uses: zaproxy/action-full-scan@v0.7.0
         with:
           target: 'http://localhost:3000'
           format: HTML
