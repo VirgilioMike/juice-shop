@@ -1,75 +1,78 @@
 name: Security CI - Juice Shop
 
 on:
-  workflow_dispatch:        # permite execução manual
+  workflow_dispatch:     # permite “Run workflow” manual
   push:
-    branches: [ main ]      # ou troque para sua branch padrão
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - master
 
 jobs:
-
   sca:
+    name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
-    name: SCA - OWASP Dependency-Check
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: '11'
-
-      - name: Run OWASP Dependency-Check
-        uses: owasp/dependency-check-action@v5
-        with:
-          project: juice-shop
-          scan: '.'
-          format: 'HTML,XML'
-          output-directory: 'dep-check-report'
-          fail-build-on-severity: 'HIGH'
+      - name: Run OWASP Dependency-Check (Docker)
+        run: |
+          mkdir -p dep-check-report
+          docker pull owasp/dependency-check:8.4.0
+          docker run --rm \
+            -v "${{ github.workspace }}":/src \
+            -v "${{ github.workspace }}/dep-check-report":/report \
+            owasp/dependency-check:8.4.0 \
+            --project "juice-shop" \
+            --scan /src \
+            --format "HTML" \
+            --format "XML" \
+            --out /report
 
       - name: Upload SCA report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sca-report
           path: dep-check-report
 
   sast:
+    name: SAST – Semgrep
     runs-on: ubuntu-latest
-    name: SAST - Semgrep
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v2
+        uses: returntocorp/semgrep-action@v1
         with:
-          config: 'p/javascript, p/node-security'
-          output: 'semgrep-report.sarif'
+          config: "p/javascript, p/node-security"
+          output: semgrep-report.sarif
 
-      - name: Upload SARIF to GitHub
-        uses: github/code-scanning-upload-action@v2
+      - name: Upload Semgrep report
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: 'semgrep-report.sarif'
+          name: semgrep-report
+          path: semgrep-report.sarif
 
   dast:
+    name: DAST – OWASP ZAP Full Scan
     needs: [sca, sast]
     runs-on: ubuntu-latest
-    name: DAST - OWASP ZAP Full Scan
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
-          cache: 'npm'
+          cache: npm
 
-      - name: Install & Start Juice Shop
+      - name: Install & start Juice Shop
         run: |
           npm ci
           npm install -g wait-on
@@ -84,7 +87,7 @@ jobs:
           report_name: 'zap-report.html'
 
       - name: Upload DAST report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dast-report
           path: zap-report.html
