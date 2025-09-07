@@ -16,7 +16,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run OWASP Dependency-Check (Docker)
+      - name: Run OWASP Dependency-Check (via Docker)
         uses: docker://owasp/dependency-check:8.4.0
         with:
           args: |
@@ -43,16 +43,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run Semgrep
+      - name: Run Semgrep Action
         uses: returntocorp/semgrep-action@v1
         with:
-          config: "p/javascript, p/node-security"
-          args: "--sarif semgrep-report.sarif"
-
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: semgrep-report.sarif
+          # packs oficiais para JS/Node
+          config: p/javascript,p/node-security
+          # envia os resultados direto para o GitHub Code Scanning
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
 
   dast:
     name: DAST – OWASP ZAP Full Scan
