@@ -1,15 +1,11 @@
 name: Security CI - Juice Shop
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:      # trigger manual
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
 
 jobs:
   sca:
@@ -19,31 +15,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: OWASP Dependency-Check (com cache e sem Archive Analyzer)
-        uses: owasp/dependency-check-action@v6
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
         with:
-          # pasta a escanear
-          scan: .
-          # nome do projeto no relatório
           project: juice-shop
-          # formatos de saída
-          format: HTML,XML
-          # onde gravar o relatório
-          output-directory: dep-check-report
-          # falhar build se encontrar HIGH+ CVSS
-          fail-build-on-severity: HIGH
-          # habilita cache do banco NVD entre runs
-          cache: true
-          # sua chave da NVD (force incremental update)
-          nvd-api-key: ${{ secrets.NVD_API_KEY }}
-          # evita analisar .zip/.jar e pular erros de extração
-          disableArchiveAnalyzer: true
+          path: '.'
+          format: 'HTML,XML'
+          out: dep-check-report
+          args: >
+            --failOnCVSS 7
+            --disableArchiveAnalyzer
 
       - name: Upload SCA report
         uses: actions/upload-artifact@v4
         with:
           name: sca-report
-          path: dep-check-report
+          path: dep-check-report/
 
   sast:
     name: SAST – Semgrep
@@ -75,10 +62,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "16"
+          node-version: '16'
           cache: npm
 
-      - name: Install & start Juice Shop
+      - name: Install & Start Juice Shop
         run: |
           npm ci
           npm install -g wait-on
@@ -88,9 +75,9 @@ jobs:
       - name: Run ZAP full scan
         uses: zaproxy/action-full-scan@v0.7.1
         with:
-          target: http://localhost:3000
-          format: HTML
-          report_name: zap-report.html
+          target: 'http://localhost:3000'
+          format: 'HTML'
+          report_name: 'zap-report.html'
 
       - name: Upload DAST report
         uses: actions/upload-artifact@v4
