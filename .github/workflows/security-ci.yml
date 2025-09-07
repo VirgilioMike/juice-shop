@@ -19,28 +19,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run OWASP Dependency-Check (Docker)
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: |
-          mkdir -p dep-check-report
-          docker pull owasp/dependency-check:12.1.0
-          docker run --rm \
-            -e NVD_API_KEY \
-            -v "${{ github.workspace }}":/src \
-            -v "${{ github.workspace }}/dep-check-report":/report \
-            owasp/dependency-check:12.1.0 \
-            --project "juice-shop" \
-            --scan /src \
-            --out /report \
-            --prettyPrint \
-            --nvdApiKey "${NVD_API_KEY}"
+      - name: OWASP Dependency-Check (com cache e sem Archive Analyzer)
+        uses: owasp/dependency-check-action@v6
+        with:
+          # pasta a escanear
+          scan: .
+          # nome do projeto no relatório
+          project: juice-shop
+          # formatos de saída
+          format: HTML,XML
+          # onde gravar o relatório
+          output-directory: dep-check-report
+          # falhar build se encontrar HIGH+ CVSS
+          fail-build-on-severity: HIGH
+          # habilita cache do banco NVD entre runs
+          cache: true
+          # sua chave da NVD (force incremental update)
+          nvd-api-key: ${{ secrets.NVD_API_KEY }}
+          # evita analisar .zip/.jar e pular erros de extração
+          disableArchiveAnalyzer: true
 
-      - name: Upload SCA reports
+      - name: Upload SCA report
         uses: actions/upload-artifact@v4
         with:
           name: sca-report
-          path: dep-check-report/*
+          path: dep-check-report
 
   sast:
     name: SAST – Semgrep
@@ -56,7 +59,7 @@ jobs:
           config: "p/javascript, p/node-security"
           args: "--sarif semgrep-report.sarif"
 
-      - name: Upload Semgrep SARIF
+      - name: Upload SARIF to GitHub Code Scanning
         uses: github/code-scanning-upload-action@v2
         with:
           sarif_file: semgrep-report.sarif
