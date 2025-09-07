@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # 1) SAST estático com Semgrep
+  # 1) Static Application Security Testing (SAST) com Semgrep
   sast_scan:
     name: SAST Scan (Semgrep)
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
-  # 2) DAST dinâmico com Wapiti
+  # 2) Dynamic Application Security Testing (DAST) com Wapiti
   dast_scan:
     name: DAST Scan (Wapiti)
     runs-on: ubuntu-latest
@@ -33,15 +33,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Start Juice Shop in Docker
-        run: |
-          docker run -d --name juiceshop -p 3000:3000 bkimminich/juice-shop
+        run: docker run -d --name juiceshop -p 3000:3000 bkimminich/juice-shop
 
       - name: Wait for Juice Shop to be ready
         run: |
           echo "⌛ Esperando http://localhost:3000…"
           for i in $(seq 1 12); do
             if curl --silent --fail http://localhost:3000; then
-              echo "✅ Juice Shop UP!"; break
+              echo "✅ Juice Shop está UP!"; break
             fi
             echo "⏳ tentativa $i/12…"; sleep 5
           done
@@ -57,8 +56,7 @@ jobs:
           echo "🚀 Executando Wapiti contra http://localhost:3000"
           wapiti -u http://localhost:3000 \
                  -f html \
-                 -o wapiti_report.html \
-                 --scope page=.*
+                 -o wapiti_report.html
 
       - name: Upload Wapiti report
         uses: actions/upload-artifact@v4
