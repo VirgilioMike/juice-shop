@@ -1,33 +1,82 @@
-dast_scan:
-    name: DAST Scan (OWASP ZAP)
+name: Security Suite (SAST & DAST with Arachni)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # 1) SAST estático com Semgrep
+  sast_scan:
+    name: SAST Scan (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: |
+            p/javascript
+            p/nodejs-express
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2) DAST dinâmico com Arachni
+  dast_scan:
+    name: DAST Scan (Arachni)
     runs-on: ubuntu-latest
     needs: sast_scan
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Start Juice Shop in Docker
-        run: |
-          docker run -d --name juiceshop -p 3000:3000 \
-            bkimminich/juice-shop
+      - name: Start Juice Shop
+        run: docker run -d --name juiceshop -p 3000:3000 \
+          bkimminich/juice-shop
 
-      - name: Wait for Juice Shop
+      - name: Wait for Juice Shop to be ready
         run: |
-          echo "⌛ Waiting for Juice Shop to be ready..."
+          echo "⌛ Esperando http://localhost:3000…"
           for i in $(seq 1 12); do
-            curl --silent --fail http://localhost:3000 && { echo "✅ Juice Shop is UP!"; break; }
-            echo "⏳ Still not ready... ($i/12)"; sleep 5
+            if curl --silent --fail http://localhost:3000; then
+              echo "✅ Juice Shop está UP!"; break
+            fi
+            echo "⏳ tentativa $i/12…"; sleep 5
           done
 
-      - name: Run ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.7.0
-        with:
-          target: 'http://localhost:3000'
-          docker_name: 'owasp/zap2docker-stable'
-          fail_action: false
-          
-      - name: Upload ZAP report
+      - name: Run Arachni DAST scan
+        run: |
+          # Usa o container oficial do Arachni
+          CTN=arachni/arachni:latest
+          # caminho de saída
+          OUT=juice_shop.afr
+          HTML=juice_shop.html
+
+          echo "🔄 puxando $CTN"
+          docker pull $CTN
+
+          echo "🚀 executando Arachni scan"
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}":/zap/wrk \
+            $CTN \
+            arachni http://localhost:3000 \
+              --report-save-path=/zap/wrk/$OUT \
+              --force-ports=3000 \
+              --timeout 1200
+
+          echo "📄 gerando relatório HTML"
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}":/zap/wrk \
+            $CTN \
+            arachni_reporter /zap/wrk/$OUT \
+              --reporter=html:outfile=/zap/wrk/$HTML
+
+      - name: Upload Arachni report
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: zap_report.html
+          name: arachni-report
+          path: juice_shop.html
