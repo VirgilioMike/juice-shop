@@ -2,19 +2,18 @@ name: Security Suite (SAST & DAST)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
   pull_request:
-    branches:
-      - main
+    branches: [ main, master ]
 
 jobs:
+  # -- SAST Static Analysis usando Semgrep --
   sast_scan:
     name: SAST Scan (Semgrep)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -22,48 +21,75 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run Semgrep SAST scan
+      - name: Run Semgrep
         id: semgrep
         uses: returntocorp/semgrep-action@v1
         with:
+          # regras padrão JavaScript/Node.js
           config: |
             p/javascript
             p/nodejs-express
+          # publica comentários em PRs
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
+          # saída em SARIF
           output-format: sarif
+          sarif_file: semgrep.sarif
 
-      - name: Upload SARIF file
-        uses: actions/upload-artifact@v4
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          name: semgrep-sarif
-          path: semgrep.sarif
-          
+          sarif_file: semgrep.sarif
+
+  # -- DAST Dynamic Analysis usando OWASP ZAP --
   dast_scan:
     name: DAST Scan (OWASP ZAP)
     runs-on: ubuntu-latest
     needs: sast_scan
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Start Juice Shop in a Docker Container
-        run: docker run -d --name juiceshop -p 3000:3000 bkimminich/juice-shop
+      - name: Start Juice Shop in Docker
+        run: |
+          docker run -d --name juiceshop -p 3000:3000 \
+            bkimminich/juice-shop
 
       - name: Wait for Juice Shop to be ready
-        run: sleep 60
+        run: |
+          echo "⌛ Esperando Juice Shop em http://localhost:3000…"
+          for i in $(seq 1 12); do
+            if curl --silent --fail http://localhost:3000; then
+              echo "✅ Juice Shop está UP!"
+              break
+            fi
+            echo "⏳ Re-tentando em 5s… ($i/12)"
+            sleep 5
+          done
 
-      - name: Run OWASP ZAP Baseline Scan
-        id: zap
-        uses: zaproxy/action-baseline@v0.7.0
-        with:
-          target: 'http://localhost:3000'
-          docker_name: 'owasp/zap2docker-stable'
-          fail_action: false
-          
+      - name: Pull ZAP Docker image (Quay.io)
+        run: |
+          ZAP_IMG=quay.io/zaproxy/zap2docker-stable:latest
+          echo "🔄 puxando $ZAP_IMG"
+          docker pull $ZAP_IMG
+
+      - name: Run ZAP Baseline Scan
+        run: |
+          ZAP_IMG=quay.io/zaproxy/zap2docker-stable:latest
+          echo "🚀 executando ZAP contra http://localhost:3000"
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}":/zap/wrk \
+            $ZAP_IMG \
+            zap-baseline.py \
+              -t http://localhost:3000 \
+              -r zap_report.html \
+              -I \
+              -T 2
+
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: zap-report
           path: zap_report.html
