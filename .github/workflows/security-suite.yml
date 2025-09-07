@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # 1) Static Application Security Testing (SAST) with Semgrep
+  # 1) Static analysis com Semgrep
   sast_scan:
     name: SAST Scan (Semgrep)
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
-  # 2) Dynamic Application Security Testing (DAST) with OWASP ZAP
+  # 2) Dynamic analysis com OWASP ZAP
   dast_scan:
     name: DAST Scan (OWASP ZAP)
     runs-on: ubuntu-latest
@@ -32,33 +32,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Start Juice Shop in Docker
+      - name: Start Juice Shop
         run: |
           docker run -d --name juiceshop -p 3000:3000 \
             bkimminich/juice-shop
 
-      - name: Wait for Juice Shop to be ready
+      - name: Wait for Juice Shop
         run: |
-          echo "⌛ Esperando http://localhost:3000 …"
+          echo "⌛ Esperando Juice Shop em http://localhost:3000…"
           for i in $(seq 1 12); do
             if curl --silent --fail http://localhost:3000; then
-              echo "✅ Juice Shop está UP!"
+              echo "✅ Juice Shop UP!"
               break
             fi
-            echo "⏳ Aguarda 5s… tentativa $i/12"
+            echo "⏳ Tentando de novo em 5s ($i/12)"
             sleep 5
           done
 
-      - name: Pull ZAP Docker image (Quay.io, público)
+      - name: Pull & Run ZAP Baseline Scan
         run: |
           IMG=quay.io/zaproxy/zap2docker-stable:latest
-          echo "🔄 puxando $IMG"
+          echo "🔄 Pulling $IMG"
           docker pull $IMG
-
-      - name: Run ZAP Baseline Scan
-        run: |
-          IMG=quay.io/zaproxy/zap2docker-stable:latest
-          echo "🚀 executando ZAP contra http://localhost:3000"
+          echo "🚀 Rodando ZAP Baseline Scan"
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}":/zap/wrk \
@@ -70,7 +66,7 @@ jobs:
               -T 2
 
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: zap_report.html
