@@ -13,9 +13,7 @@ jobs:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Run OWASP Dependency-Check (via Docker)
         uses: docker://owasp/dependency-check:8.4.0
         with:
@@ -28,9 +26,8 @@ jobs:
             --junitFailOnCVSS 7
             --disableArchiveAnalyzer
             --noupdate
-
-      - name: Upload SCA report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
+        name: Upload SCA report
         with:
           name: sca-report
           path: dep-check-report/**
@@ -40,15 +37,11 @@ jobs:
     needs: sca
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Run Semgrep Action
         uses: returntocorp/semgrep-action@v1
         with:
-          # packs oficiais para JS/Node
           config: p/javascript,p/node-security
-          # envia os resultados direto para o GitHub Code Scanning
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
   dast:
@@ -56,8 +49,7 @@ jobs:
     needs: [sca, sast]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -73,7 +65,7 @@ jobs:
           npx wait-on http://localhost:3000
 
       - name: Run ZAP full scan
-        uses: zaproxy/action-full-scan@v0.7.1
+        uses: zaproxy/action-full-scan@v0.6.1
         with:
           target: 'http://localhost:3000'
           format: HTML
