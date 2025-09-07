@@ -33,8 +33,17 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Start Juice Shop
-        run: docker run -d --name juiceshop -p 3000:3000 \
-          bkimminich/juice-shop
+        run: |
+          # Subir container sem escapes que quebrem o nome da imagem
+          docker run -d \
+            --name juiceshop \
+            -p 3000:3000 \
+            bkimminich/juice-shop
+
+      - name: Debug: listar containers
+        run: |
+          echo "🐳 Containers rodando:"
+          docker ps -a
 
       - name: Wait for Juice Shop to be ready
         run: |
@@ -46,25 +55,22 @@ jobs:
             echo "⏳ tentativa $i/12…"; sleep 5
           done
 
-      - name: Run Arachni DAST scan
+      - name: Pull & Run Arachni scan
         run: |
-          # Usa o container oficial do Arachni
           CTN=arachni/arachni:latest
-          # caminho de saída
           OUT=juice_shop.afr
           HTML=juice_shop.html
 
           echo "🔄 puxando $CTN"
           docker pull $CTN
 
-          echo "🚀 executando Arachni scan"
+          echo "🚀 executando Arachni"
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}":/zap/wrk \
             $CTN \
             arachni http://localhost:3000 \
               --report-save-path=/zap/wrk/$OUT \
-              --force-ports=3000 \
               --timeout 1200
 
           echo "📄 gerando relatório HTML"
