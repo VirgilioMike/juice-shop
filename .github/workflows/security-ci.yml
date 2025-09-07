@@ -1,7 +1,7 @@
 name: Security CI - Juice Shop
 
 on:
-  workflow_dispatch:     # permite “Run workflow” manual
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -12,6 +12,7 @@ on:
       - master
 
 jobs:
+
   sca:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
@@ -19,19 +20,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Run OWASP Dependency-Check (Docker)
+      - name: Run OWASP Dependency-Check (via Docker)
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           mkdir -p dep-check-report
-          docker pull owasp/dependency-check:8.4.0
+          docker pull owasp/dependency-check:latest
           docker run --rm \
+            -e NVD_API_KEY="${NVD_API_KEY}" \
             -v "${{ github.workspace }}":/src \
             -v "${{ github.workspace }}/dep-check-report":/report \
-            owasp/dependency-check:8.4.0 \
+            owasp/dependency-check:latest \
             --project "juice-shop" \
             --scan /src \
             --format "HTML" \
             --format "XML" \
-            --out /report
+            --out /report \
+            --apiKey "${NVD_API_KEY}"
 
       - name: Upload SCA report
         uses: actions/upload-artifact@v4
@@ -42,6 +47,7 @@ jobs:
   sast:
     name: SAST – Semgrep
     runs-on: ubuntu-latest
+    needs: sca
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -50,18 +56,17 @@ jobs:
         uses: returntocorp/semgrep-action@v1
         with:
           config: "p/javascript, p/node-security"
-          output: semgrep-report.sarif
+          args: "--sarif semgrep-report.sarif"
 
-      - name: Upload Semgrep report
-        uses: actions/upload-artifact@v4
+      - name: Upload Semgrep SARIF
+        uses: github/code-scanning-upload-action@v2
         with:
-          name: semgrep-report
-          path: semgrep-report.sarif
+          sarif_file: semgrep-report.sarif
 
   dast:
     name: DAST – OWASP ZAP Full Scan
-    needs: [sca, sast]
     runs-on: ubuntu-latest
+    needs: [sca, sast]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -72,7 +77,7 @@ jobs:
           node-version: '16'
           cache: npm
 
-      - name: Install & start Juice Shop
+      - name: Install & Start Juice Shop
         run: |
           npm ci
           npm install -g wait-on
