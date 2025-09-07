@@ -1,10 +1,12 @@
-name: Security Suite (SAST & DAST with Wapiti)
+name: Security Suite (SAST, DAST, SCA)
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
 
 jobs:
   # 1) Static Application Security Testing (SAST) com Semgrep
@@ -15,19 +17,50 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run Semgrep
+      - name: Run Semgrep SAST scan
         uses: returntocorp/semgrep-action@v1
         with:
           config: |
             p/javascript
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
+          output-format: sarif
+          sarif_file: semgrep.sarif
+      
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep.sarif
 
-  # 2) Dynamic Application Security Testing (DAST) com Wapiti
-  dast_scan:
-    name: DAST Scan (Wapiti)
+  # 2) Software Composition Analysis (SCA) com OWASP Dependency-Check
+  sca_scan:
+    name: SCA Scan (Dependency-Check)
     runs-on: ubuntu-latest
     needs: sast_scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run OWASP Dependency-Check
+        id: dependency-check
+        uses: dependency-check/action@v3
+        with:
+          project: 'Juice Shop'
+          scan: '.'
+
+  # 3) Dynamic Application Security Testing (DAST) com OWASP ZAP
+  dast_scan:
+    name: DAST Scan (OWASP ZAP)
+    runs-on: ubuntu-latest
+    needs: [sast_scan, sca_scan]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -35,31 +68,25 @@ jobs:
       - name: Start Juice Shop in Docker
         run: docker run -d --name juiceshop -p 3000:3000 bkimminich/juice-shop
 
-      - name: Wait for Juice Shop to be ready
+      - name: Wait for Juice Shop
         run: |
-          echo "⌛ Esperando http://localhost:3000…"
+          echo "⌛ Esperando Juice Shop em http://localhost:3000…"
           for i in $(seq 1 12); do
             if curl --silent --fail http://localhost:3000; then
               echo "✅ Juice Shop está UP!"; break
             fi
-            echo "⏳ tentativa $i/12…"; sleep 5
+            echo "⏳ Re-tentando em 5s… ($i/12)"; sleep 5
           done
 
-      - name: Install Wapiti
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y python3-pip
-          pip3 install wapiti3
-
-      - name: Run Wapiti DAST scan
-        run: |
-          echo "🚀 Executando Wapiti contra http://localhost:3000"
-          wapiti -u http://localhost:3000 \
-                 -f html \
-                 -o wapiti_report.html
-
-      - name: Upload Wapiti report
-        uses: actions/upload-artifact@v4
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
         with:
-          name: wapiti-report
-          path: wapiti_report.html
+          target: 'http://localhost:3000'
+          docker_name: 'owasp/zap2docker-stable'
+          fail_action: false
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: zap_report.html
