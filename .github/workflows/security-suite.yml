@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # -- SAST Static Analysis usando Semgrep --
+  # 1) Static Application Security Testing (SAST) with Semgrep
   sast_scan:
     name: SAST Scan (Semgrep)
     runs-on: ubuntu-latest
@@ -15,34 +15,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
-
       - name: Run Semgrep
-        id: semgrep
         uses: returntocorp/semgrep-action@v1
         with:
-          # regras padrão JavaScript/Node.js
           config: |
             p/javascript
             p/nodejs-express
-          # publica comentários em PRs
           publishToken: ${{ secrets.GITHUB_TOKEN }}
-          # saída em SARIF
-          output-format: sarif
-          sarif_file: semgrep.sarif
 
-      - name: Upload SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: semgrep.sarif
-
-  # -- DAST Dynamic Analysis usando OWASP ZAP --
+  # 2) Dynamic Application Security Testing (DAST) with OWASP ZAP
   dast_scan:
     name: DAST Scan (OWASP ZAP)
     runs-on: ubuntu-latest
@@ -58,30 +39,30 @@ jobs:
 
       - name: Wait for Juice Shop to be ready
         run: |
-          echo "⌛ Esperando Juice Shop em http://localhost:3000…"
+          echo "⌛ Esperando http://localhost:3000 …"
           for i in $(seq 1 12); do
             if curl --silent --fail http://localhost:3000; then
               echo "✅ Juice Shop está UP!"
               break
             fi
-            echo "⏳ Re-tentando em 5s… ($i/12)"
+            echo "⏳ Aguarda 5s… tentativa $i/12"
             sleep 5
           done
 
-      - name: Pull ZAP Docker image (Quay.io)
+      - name: Pull ZAP Docker image (Quay.io, público)
         run: |
-          ZAP_IMG=quay.io/zaproxy/zap2docker-stable:latest
-          echo "🔄 puxando $ZAP_IMG"
-          docker pull $ZAP_IMG
+          IMG=quay.io/zaproxy/zap2docker-stable:latest
+          echo "🔄 puxando $IMG"
+          docker pull $IMG
 
       - name: Run ZAP Baseline Scan
         run: |
-          ZAP_IMG=quay.io/zaproxy/zap2docker-stable:latest
+          IMG=quay.io/zaproxy/zap2docker-stable:latest
           echo "🚀 executando ZAP contra http://localhost:3000"
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}":/zap/wrk \
-            $ZAP_IMG \
+            $IMG \
             zap-baseline.py \
               -t http://localhost:3000 \
               -r zap_report.html \
