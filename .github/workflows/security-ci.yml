@@ -1,4 +1,55 @@
-dast:
+name: Security CI - Juice Shop
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+
+  sca:
+    name: SCA – OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run OWASP Dependency-Check (via Docker)
+        uses: docker://owasp/dependency-check:8.4.0
+        with:
+          args: |
+            --project juice-shop
+            --scan /github/workspace
+            --out /github/workspace/dep-check-report
+            --format HTML
+            --format XML
+            --junitFailOnCVSS 7
+            --disableArchiveAnalyzer
+            --noupdate
+
+      - name: Upload SCA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-report
+          path: dep-check-report/**
+
+  sast:
+    name: SAST – Semgrep
+    needs: sca
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Semgrep Action
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/javascript,p/node-security
+          publishToken: ${{ secrets.GITHUB_TOKEN }}
+
+  dast:
     name: DAST – ZAP Quick Scan
     needs: [sca, sast]
     runs-on: ubuntu-latest
@@ -25,6 +76,7 @@ dast:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target: http://localhost:3000
+          # -m 1 = modo rápido; -T 300 = timeout interno de 5min
           cmd_options: '-m 1 -T 300'
           allow_issue_writing: false
           fail_action: false
