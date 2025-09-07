@@ -13,7 +13,9 @@ jobs:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Run OWASP Dependency-Check (via Docker)
         uses: docker://owasp/dependency-check:8.4.0
         with:
@@ -26,8 +28,9 @@ jobs:
             --junitFailOnCVSS 7
             --disableArchiveAnalyzer
             --noupdate
-      - uses: actions/upload-artifact@v4
-        name: Upload SCA report
+
+      - name: Upload SCA report
+        uses: actions/upload-artifact@v4
         with:
           name: sca-report
           path: dep-check-report/**
@@ -37,7 +40,9 @@ jobs:
     needs: sca
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Run Semgrep Action
         uses: returntocorp/semgrep-action@v1
         with:
@@ -49,16 +54,17 @@ jobs:
     needs: [sca, sast]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js (sem cache de lockfile)
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
 
       - name: Install & Start Juice Shop
         run: |
-          npm ci
+          npm install
           npm install -g wait-on
           npm start &
           npx wait-on http://localhost:3000
