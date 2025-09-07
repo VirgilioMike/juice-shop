@@ -1,4 +1,4 @@
-name: Security Suite (SAST & DAST with Arachni)
+name: Security Suite (SAST & DAST with Wapiti)
 
 on:
   push:
@@ -23,66 +23,45 @@ jobs:
             p/nodejs-express
           publishToken: ${{ secrets.GITHUB_TOKEN }}
 
-  # 2) DAST dinâmico com Arachni
+  # 2) DAST dinâmico com Wapiti
   dast_scan:
-    name: DAST Scan (Arachni)
+    name: DAST Scan (Wapiti)
     runs-on: ubuntu-latest
     needs: sast_scan
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Start Juice Shop
+      - name: Start Juice Shop in Docker
         run: |
-          # Subir container sem escapes que quebrem o nome da imagem
-          docker run -d \
-            --name juiceshop \
-            -p 3000:3000 \
-            bkimminich/juice-shop
-
-      - name: Debug: listar containers
-        run: |
-          echo "🐳 Containers rodando:"
-          docker ps -a
+          docker run -d --name juiceshop -p 3000:3000 bkimminich/juice-shop
 
       - name: Wait for Juice Shop to be ready
         run: |
           echo "⌛ Esperando http://localhost:3000…"
           for i in $(seq 1 12); do
             if curl --silent --fail http://localhost:3000; then
-              echo "✅ Juice Shop está UP!"; break
+              echo "✅ Juice Shop UP!"; break
             fi
             echo "⏳ tentativa $i/12…"; sleep 5
           done
 
-      - name: Pull & Run Arachni scan
+      - name: Install Wapiti
         run: |
-          CTN=arachni/arachni:latest
-          OUT=juice_shop.afr
-          HTML=juice_shop.html
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-pip
+          pip3 install wapiti3
 
-          echo "🔄 puxando $CTN"
-          docker pull $CTN
+      - name: Run Wapiti DAST scan
+        run: |
+          echo "🚀 Executando Wapiti contra http://localhost:3000"
+          wapiti -u http://localhost:3000 \
+                 -f html \
+                 -o wapiti_report.html \
+                 --scope page=.*
 
-          echo "🚀 executando Arachni"
-          docker run --rm \
-            --network host \
-            -v "${{ github.workspace }}":/zap/wrk \
-            $CTN \
-            arachni http://localhost:3000 \
-              --report-save-path=/zap/wrk/$OUT \
-              --timeout 1200
-
-          echo "📄 gerando relatório HTML"
-          docker run --rm \
-            --network host \
-            -v "${{ github.workspace }}":/zap/wrk \
-            $CTN \
-            arachni_reporter /zap/wrk/$OUT \
-              --reporter=html:outfile=/zap/wrk/$HTML
-
-      - name: Upload Arachni report
+      - name: Upload Wapiti report
         uses: actions/upload-artifact@v4
         with:
-          name: arachni-report
-          path: juice_shop.html
+          name: wapiti-report
+          path: wapiti_report.html
