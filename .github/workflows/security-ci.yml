@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
+
   sca:
     name: SCA – OWASP Dependency-Check
     runs-on: ubuntu-latest
@@ -16,7 +17,6 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Run OWASP Dependency-Check (Docker)
-        # monta seu workspace em /github/workspace e executa o entrypoint do container
         uses: docker://owasp/dependency-check:8.4.0
         with:
           args: |
@@ -25,14 +25,15 @@ jobs:
             --out /github/workspace/dep-check-report
             --format HTML
             --format XML
-            --junitFailOnCVSS 7           # CVSS 0–10, falhar em ≥7
-            --disableArchiveAnalyzer      # pula análise de .zip/.jar que estavam quebrando
+            --junitFailOnCVSS 7
+            --disableArchiveAnalyzer
+            --noupdate
 
       - name: Upload SCA report
         uses: actions/upload-artifact@v4
         with:
           name: sca-report
-          path: dep-check-report
+          path: dep-check-report/**
 
   sast:
     name: SAST – Semgrep
@@ -45,17 +46,17 @@ jobs:
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
-          config: p/javascript, p/node-security
-          args: --sarif semgrep-report.sarif
+          config: "p/javascript, p/node-security"
+          args: "--sarif semgrep-report.sarif"
 
       - name: Upload SARIF to GitHub Code Scanning
-        uses: github/code-scanning-upload-action@v2
+        uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: semgrep-report.sarif
 
   dast:
     name: DAST – OWASP ZAP Full Scan
-    needs: [ sca, sast ]
+    needs: [sca, sast]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,7 +68,7 @@ jobs:
           node-version: '16'
           cache: npm
 
-      - name: Install & start Juice Shop
+      - name: Install & Start Juice Shop
         run: |
           npm ci
           npm install -g wait-on
@@ -77,7 +78,7 @@ jobs:
       - name: Run ZAP full scan
         uses: zaproxy/action-full-scan@v0.7.1
         with:
-          target: http://localhost:3000
+          target: 'http://localhost:3000'
           format: HTML
           report_name: zap-report.html
 
