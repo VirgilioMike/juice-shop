@@ -88,7 +88,7 @@ jobs:
           # The action status will be set to fail if ZAP identifies any alerts during the full scan
           # fail_action: # optional
           # Whether Github issues should be created or not
-          # allow_issue_writing: # optional, default is true
+          allow_issue_writing: false
           # The name of the artifact that contains the ZAP reports
           # artifact_name: # optional, default is zap_scan
                 
