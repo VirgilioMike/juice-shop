@@ -22,7 +22,7 @@ jobs:
           path: "."
           format: "HTML"
           out: "dep-check-report"
-          args: "--disableArchiveAnalyzer --noupdate"
+          args: "--noupdate"
 
       - uses: actions/upload-artifact@v4
         name: Upload SCA HTML report
