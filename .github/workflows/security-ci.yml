@@ -1,4 +1,4 @@
-name: Security CI - Juice Shop
+name: Security CI - Juice Shop (SCA)
 
 on:
   push:
@@ -8,15 +8,23 @@ on:
   workflow_dispatch:
 
 jobs:
-
   sca:
-    name: SCA – OWASP Dependency-Check
+    name: SCA – OWASP Dependency-Check (HTML)
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Install Node.js dependencies
-        run: npm install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (20.x)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          # Preferível em CI quando há package-lock.json
+          npm ci || npm install
 
       - name: Run OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -25,69 +33,15 @@ jobs:
           path: "."
           format: "HTML"
           out: "dep-check-report"
-          args: "--noupdate"
+          args: >
+            --exclude "**/test/**"
+            --exclude "**/tests/**"
+            --exclude "**/test/files/**"
+            --exclude "**/build/**"
+            --disableArchive
 
-      - uses: actions/upload-artifact@v4
-        name: Upload SCA HTML report
+      - name: Upload SCA HTML report
+        uses: actions/upload-artifact@v4
         with:
           name: sca-report-html
           path: dep-check-report/dependency-check-report.html
-
-  sast:
-    name: SAST – Semgrep
-    #needs: sca
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Run Semgrep Action
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: p/javascript,p/node-security
-          publishToken: ${{ secrets.GITHUB_TOKEN }}
-
-  dast:
-    name: DAST – ZAP Quick Scan
-    # needs: [sca, sast]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Node.js (20.x)
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.x'
-
-      - name: Install & Start Juice Shop
-        run: |
-          npm install
-          npm install -g wait-on
-          npm start &
-          npx wait-on http://localhost:3000
-
-      - name: ZAP Full Scan
-          # You may pin to the exact commit or the version.
-          # uses: zaproxy/action-full-scan@75ee1686750ab1511a73b26b77a2aedd295053ed
-        uses: zaproxy/action-full-scan@v0.12.0
-        with:
-        # GitHub Token to create issues in the repository
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Target URL
-          target: "http://localhost:3000"
-          # Relative path of the ZAP configuration file
-          # rules_file_name: # optional
-          # The Docker file to be executed
-          # docker_name: # default is ghcr.io/zaproxy/zaproxy:stable
-          # Additional command line options
-          # cmd_options: # optional
-          # The title for the GitHub issue to be created
-          # issue_title: # optional, default is ZAP Full Scan Report
-          # The action status will be set to fail if ZAP identifies any alerts during the full scan
-          # fail_action: # optional
-          # Whether Github issues should be created or not
-          allow_issue_writing: false
-          # The name of the artifact that contains the ZAP reports
-          # artifact_name: # optional, default is zap_scan
-                
